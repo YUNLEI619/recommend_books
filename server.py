@@ -1,15 +1,17 @@
 import pandas as pd
 import numpy as np
 import ast
-from sklearn.preprocessing import MultiLabelBinarizer
+# from sklearn.preprocessing import MultiLabelBinarizer
 from gensim.models import Word2Vec
-from scipy.spatial.distance import cosine
+# from scipy.spatial.distance import cosine
 from sklearn.metrics.pairwise import cosine_similarity
 from flask import Flask, request, jsonify
+from fuzzywuzzy import process
+
 
 app = Flask(__name__)
 
-df = pd.read_csv('book_list.csv')
+df = pd.read_csv('/Users/xyl/PycharmProjects/Recommend_books/book_list.csv')
 
 df.head(10)
 
@@ -99,12 +101,18 @@ combined_sim_matrix = cosine_similarity(combined_vectors)
 rating_sim_matrix = 1 - np.abs(df_cleaned['Rating'].values[:, None] - df_cleaned['Rating'].values) / 5
 
 
+# def recommend_books(book_title, num_recommendations=5):
+#     if len(df_cleaned) == 0:
+#         return "Not enough books to provide recommendations."
+#
+#     if book_title not in df_cleaned['Title'].values:
+#         return f"Book with title '{book_title}' not found in the database."
 def recommend_books(book_title, num_recommendations=5):
     if len(df_cleaned) == 0:
-        return "Not enough books to provide recommendations."
+        return pd.DataFrame()  # Return an empty DataFrame if the database is empty
 
     if book_title not in df_cleaned['Title'].values:
-        return f"Book with title '{book_title}' not found in the database."
+        return pd.DataFrame() # Return an empty DataFrame if no matches are found
 
     target_index = df_cleaned[df_cleaned['Title'] == book_title].index[0]
 
@@ -132,24 +140,66 @@ def recommend_books(book_title, num_recommendations=5):
 # Replace the title of your choice for book recommendation
 
 
+# @app.route('/api/recommend', methods=['GET'])
+# def recommend_api():
+#     book_title = request.args.get('book_title')
+#     num_recommendations = int(request.args.get('num_recommendations', 5))
+#
+#     recommendations = recommend_books(book_title, num_recommendations=num_recommendations)
+#
+#     recommendations_list = recommendations.to_dict(orient='records')
+#
+#     return jsonify(recommendations_list)
+
+# @app.route('/api/recommend', methods=['GET'])
+# def recommend_api():
+#     book_title = request.args.get('book_title')
+#     num_recommendations = int(request.args.get('num_recommendations', 5))
+#
+#     # Fuzzy matching to find similar book titles
+#     similar_titles = process.extractBests(book_title, df_cleaned['Title'], limit=num_recommendations)
+#
+#     # Extract similar book titles from fuzzy matching result
+#     similar_titles = [title[0] for title in similar_titles]
+#
+#     # Get recommendations for each similar title
+#     recommendations_list = []
+#     for title in similar_titles:
+#         recommendations = recommend_books(title, num_recommendations=num_recommendations)
+#         recommendations_list.extend(recommendations.to_dict(orient='records'))
+#
+#     return jsonify(recommendations_list)
+
+
 @app.route('/api/recommend', methods=['GET'])
 def recommend_api():
     book_title = request.args.get('book_title')
     num_recommendations = int(request.args.get('num_recommendations', 5))
 
-    recommendations = recommend_books(book_title, num_recommendations=num_recommendations)
+    # Fuzzy matching to find similar book titles
+    similar_titles = process.extractBests(book_title, df_cleaned['Title'], limit=num_recommendations)
+
+    # Extract similar book titles from fuzzy matching result
+    similar_titles = [title[0] for title in similar_titles]
+
+    # Get recommendations for the most similar title
+    most_similar_title = similar_titles[0]
+    recommendations = recommend_books(most_similar_title, num_recommendations=5)
 
     recommendations_list = recommendations.to_dict(orient='records')
 
     return jsonify(recommendations_list)
 
+
 @app.route('/')
 def hello_world():
     return 'Hello World!'
 
+
 @app.route('/api/mock', methods=['GET'])
 def mock():
     return '123'
+
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port='5000', debug=True)
